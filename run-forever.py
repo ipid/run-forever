@@ -1,5 +1,6 @@
 """
-永久运行某个命令，在其结束后自动重启，并将 stdout
+Simple tool for deploying server applications.
+Run specific command, and run again if it stops.
 """
 
 import logging
@@ -12,6 +13,13 @@ SLEEP_BEFORE_RESTART = 30
 LOG_FILE = 'log-run-forever.log'
 STDOUT_FILE = 'std(out,err)-run-forever.log'
 
+USAGE = f'''
+Usage: {sys.argv[0]} <Your command>
+Examples:
+    {sys.argv[0]} fuck
+    {sys.argv[0]} "ping -n 1 www.google.com"
+'''
+
 logging.basicConfig(
     level=logging.DEBUG,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -23,14 +31,14 @@ logging.basicConfig(
 
 def run_command_once(cmd: str, file_obj) -> int:
     """
-    在终端中运行某个命令一次，将其输出放入文件对象 file_obj 中。
-    返回命令的返回码。
+    Run given command once (with a shell), wait till it finishes and return its status code.
+    Stdout of the given command will be redirected to file_obj.
 
-    :param cmd: 要运行的命令
-    :param file_obj: 文件对象
-    :return: 命令运行的状态码
+    :param cmd: The specific command
+    :param file_obj: File object
+    :return: Status code
     """
-    logging.debug(f'运行命令：「{cmd}」')
+    logging.debug(f'Run command:「{cmd}」')
 
     proc = subprocess.Popen(cmd, stdout=file_obj, stderr=file_obj, shell=True)
     ret_code = int(proc.wait())
@@ -38,15 +46,15 @@ def run_command_once(cmd: str, file_obj) -> int:
 
 
 def main():
-    # run-forever.py 只有一个参数
+    # run-forever.py has only one parameter
     if len(sys.argv) != 2:
         print('Command must be passed in within one argument.\n'
               'Please add a pair of quotation mark around your command.')
+        print(USAGE)
         return
 
     cmd = sys.argv[-1]
 
-    # 打开 stdout 文件，开始循环
     f = open(STDOUT_FILE, 'w', encoding='utf-8')
     while True:
         ret_code = None
@@ -58,7 +66,7 @@ def main():
             f.flush()
 
         if ret_code is not None:
-            logging.debug(f'run_command_once 未出现异常。命令返回码：{ret_code}')
+            logging.debug(f'No Python exceptions was thrown. Status code: {ret_code}')
 
         sleep(SLEEP_BEFORE_RESTART)
 
