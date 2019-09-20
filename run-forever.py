@@ -3,33 +3,37 @@ Simple tool for deploying server applications.
 Run specific command, and run again if it stops.
 """
 
+import argparse
 import logging
 import subprocess
-import sys
+from logging.handlers import RotatingFileHandler
 from time import sleep
 from traceback import format_exc
 
-SLEEP_BEFORE_RESTART = 30
-LOG_FILE = 'log-run-forever.log'
-STDOUT_FILE = 'std(out,err)-run-forever.log'
+DEFAULT_SLEEP_BEFORE_RESTART = 15
+DEFAULT_LOG_FILE = 'log-run-forever.log'
 
-USAGE = f'''
-Usage: {sys.argv[0]} <Your command>
-Examples:
-    {sys.argv[0]} fuck
-    {sys.argv[0]} "ping -n 1 www.google.com"
-'''
-
-logging.basicConfig(
-    level=logging.DEBUG,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler(LOG_FILE, encoding='utf-8'),
-    ],
+argpar = argparse.ArgumentParser(
+    prog='run-forever.py',
+    description='Run specific command, and run again if it stops.',
+)
+argpar.add_argument(
+    '--sleep', action='store',
+    default=DEFAULT_SLEEP_BEFORE_RESTART, type=int,
+    help=f'Seconds to sleep before restart. Default {DEFAULT_SLEEP_BEFORE_RESTART}.'
+)
+argpar.add_argument(
+    '--log-file', action='store',
+    default=DEFAULT_LOG_FILE, type=str,
+    help=f'Name of log file. Default {DEFAULT_LOG_FILE}.'
+)
+argpar.add_argument(
+    'command', type=str, default='', nargs='*',
+    help='The command to run and restart.'
 )
 
 
-def run_command_once(cmd: str, file_obj) -> int:
+def run_command_once(cmd: str) -> int:
     """
     Run given command once (with a shell), wait till it finishes and return its status code.
     Stdout of the given command will be redirected to file_obj.
@@ -40,35 +44,35 @@ def run_command_once(cmd: str, file_obj) -> int:
     """
     logging.debug(f'Run command:「{cmd}」')
 
-    proc = subprocess.Popen(cmd, stdout=file_obj, stderr=file_obj, shell=True)
+    proc = subprocess.Popen(cmd, shell=True)
     ret_code = int(proc.wait())
     return ret_code
 
 
 def main():
-    # run-forever.py has only one parameter
-    if len(sys.argv) != 2:
-        print('Command must be passed in within one argument.\n'
-              'Please add a pair of quotation mark around your command.')
-        print(USAGE)
-        return
+    args = argpar.parse_args()
 
-    cmd = sys.argv[-1]
+    logging.basicConfig(
+        level=logging.DEBUG,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        handlers=[
+            RotatingFileHandler(args.log_file, maxBytes=64 * 1024 * 1024,
+                                backupCount=1, encoding='utf-8'),
+        ],
+    )
+    cmd = ' '.join(args.command)
 
-    f = open(STDOUT_FILE, 'w', encoding='utf-8')
     while True:
         ret_code = None
         try:
-            ret_code = run_command_once(cmd, f)
+            ret_code = run_command_once(cmd)
         except:
             logging.error(format_exc())
-        finally:
-            f.flush()
 
         if ret_code is not None:
             logging.debug(f'No Python exceptions was thrown. Status code: {ret_code}')
 
-        sleep(SLEEP_BEFORE_RESTART)
+        sleep(args.sleep)
 
 
 if __name__ == '__main__':
